@@ -51,25 +51,30 @@ def unnormalize(X, E, y, norm_values, norm_biases, node_mask, collapse=False):
 
 
 def to_dense(x, edge_index, edge_attr, batch):
+    #可以理解为去离散化
     X, node_mask = to_dense_batch(x=x, batch=batch)
     # node_mask = node_mask.float()
+    #除掉self_loop,why???
     edge_index, edge_attr = torch_geometric.utils.remove_self_loops(edge_index, edge_attr)
     # TODO: carefully check if setting node_mask as a bool breaks the continuous case
+    #最多点的数量
     max_num_nodes = X.size(1)
     E = to_dense_adj(edge_index=edge_index, batch=batch, edge_attr=edge_attr, max_num_nodes=max_num_nodes)
     E = encode_no_edge(E)
 
     return PlaceHolder(X=X, E=E, y=None), node_mask
 
-
+#将没有连边,且不是self-loop的部分的第一个feature=1
 def encode_no_edge(E):
     assert len(E.shape) == 4
     if E.shape[-1] == 0:
         return E
+    #建模邻接矩阵中没有边的部分
     no_edge = torch.sum(E, dim=3) == 0
     first_elt = E[:, :, :, 0]
     first_elt[no_edge] = 1
-    E[:, :, :, 0] = first_elt
+    # E[:, :, :, 0] = first_elt 这句没用
+    #diag [batch_size,max_node,max_node] I matrix
     diag = torch.eye(E.shape[1], dtype=torch.bool).unsqueeze(0).expand(E.shape[0], -1, -1)
     E[diag] = 0
     return E
@@ -113,8 +118,10 @@ class PlaceHolder:
         self.y = self.y.type_as(x)
         return self
 
+    # mask self.X and 
+    # mask self.E and keep symmetry
     def mask(self, node_mask, collapse=False):
-        x_mask = node_mask.unsqueeze(-1)          # bs, n, 1
+        x_mask = node_mask.unsqueeze(-1)          # batch_size, max_nodes , 1
         e_mask1 = x_mask.unsqueeze(2)             # bs, n, 1, 1
         e_mask2 = x_mask.unsqueeze(1)             # bs, 1, n, 1
 

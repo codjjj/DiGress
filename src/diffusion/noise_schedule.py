@@ -81,9 +81,11 @@ class PredefinedNoiseScheduleDiscrete(torch.nn.Module):
 
 class DiscreteUniformTransition:
     def __init__(self, x_classes: int, e_classes: int, y_classes: int):
+        #最后需要输出的X,E,y的class数
         self.X_classes = x_classes
         self.E_classes = e_classes
         self.y_classes = y_classes
+        #u_x u_e u_y对应原文(1_d*1_d')/d
         self.u_x = torch.ones(1, self.X_classes, self.X_classes)
         if self.X_classes > 0:
             self.u_x = self.u_x / self.X_classes

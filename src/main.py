@@ -68,6 +68,8 @@ def get_resume_adaptive(cfg, model_kwargs):
 @hydra.main(version_base='1.3', config_path='../configs', config_name='config')
 def main(cfg: DictConfig):
     dataset_config = cfg["dataset"]
+    print(cfg)
+    
 
     if dataset_config["name"] in ['sbm', 'comm20', 'planar']:
         from datasets.spectre_dataset import SpectreGraphDataModule, SpectreDatasetInfos

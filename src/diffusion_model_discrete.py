@@ -14,7 +14,6 @@ from metrics.train_metrics import TrainLossDiscrete
 from metrics.abstract_metrics import SumExceptBatchMetric, SumExceptBatchKL, NLL
 from src import utils
 
-
 class DiscreteDenoisingDiffusion(pl.LightningModule):
     def __init__(self, cfg, dataset_infos, train_metrics, sampling_metrics, visualization_tools, extra_features,
                  domain_features):
@@ -101,14 +100,24 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         self.val_counter = 0
 
     def training_step(self, data, i):
+        #return number of elements
         if data.edge_index.numel() == 0:
             self.print("Found a batch with no edges. Skipping.")
             return
+
+        # an example:
+        # data.x.shape torch.Size([4498, 4])
+        # data.edge_index.shape torch.Size([2, 9658])
+        # data.edge_attr.shape torch.Size([9658, 5])
+        # data.batch.shape torch.Size([4498])
+        
+        # dense_data contains X,E,y
         dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
         dense_data = dense_data.mask(node_mask)
         X, E = dense_data.X, dense_data.E
         noisy_data = self.apply_noise(X, E, data.y, node_mask)
         extra_data = self.compute_extra_data(noisy_data)
+        # pred: 加上extra_data的最终预测的X,E,y
         pred = self.forward(noisy_data, extra_data, node_mask)
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
@@ -401,6 +410,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
 
         return utils.PlaceHolder(X=probX0, E=probE0, y=proby0)
 
+    #加噪  s是用来干什么的
     def apply_noise(self, X, E, y, node_mask):
         """ Sample noise and apply it to the data. """
 
@@ -416,24 +426,29 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         # beta_t and alpha_s_bar are used for denoising/loss computation
         beta_t = self.noise_schedule(t_normalized=t_float)                         # (bs, 1)
         alpha_s_bar = self.noise_schedule.get_alpha_bar(t_normalized=s_float)      # (bs, 1)
-        alpha_t_bar = self.noise_schedule.get_alpha_bar(t_normalized=t_float)      # (bs, 1)
 
+        alpha_t_bar = self.noise_schedule.get_alpha_bar(t_normalized=t_float)      # (bs, 1)
+        #包含3个矩阵 Q_t_X Q_t_E Q_t_y
         Qtb = self.transition_model.get_Qt_bar(alpha_t_bar, device=self.device)  # (bs, dx_in, dx_out), (bs, de_in, de_out)
+        #确认转移矩阵每一列的和是1
+        #all() 和 any()比较有用,用来debug
         assert (abs(Qtb.X.sum(dim=2) - 1.) < 1e-4).all(), Qtb.X.sum(dim=2) - 1
         assert (abs(Qtb.E.sum(dim=2) - 1.) < 1e-4).all()
 
         # Compute transition probabilities
         probX = X @ Qtb.X  # (bs, n, dx_out)
+        # torch matmul 的运算法里 只要补全了第二个维度,是可以自动broadcast的
         probE = E @ Qtb.E.unsqueeze(1)  # (bs, n, n, de_out)
 
+        # sample的都是index 后面进行one-hot
         sampled_t = diffusion_utils.sample_discrete_features(probX=probX, probE=probE, node_mask=node_mask)
 
         X_t = F.one_hot(sampled_t.X, num_classes=self.Xdim_output)
         E_t = F.one_hot(sampled_t.E, num_classes=self.Edim_output)
         assert (X.shape == X_t.shape) and (E.shape == E_t.shape)
-
         z_t = utils.PlaceHolder(X=X_t, E=E_t, y=y).type_as(X_t).mask(node_mask)
 
+        
         noisy_data = {'t_int': t_int, 't': t_float, 'beta_t': beta_t, 'alpha_s_bar': alpha_s_bar,
                       'alpha_t_bar': alpha_t_bar, 'X_t': z_t.X, 'E_t': z_t.E, 'y_t': z_t.y, 'node_mask': node_mask}
         return noisy_data

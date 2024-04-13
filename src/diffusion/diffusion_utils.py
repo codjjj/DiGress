@@ -239,6 +239,7 @@ def sample_discrete_features(probX, probE, node_mask):
     bs, n, _ = probX.shape
     # Noise X
     # The masked rows should define probability distributions as well
+    #这里是为了统一处理 实际我认为mask掉的节点sample没什么用
     probX[~node_mask] = 1 / probX.shape[-1]
 
     # Flatten the probability tensor to sample with multinomial
@@ -252,7 +253,7 @@ def sample_discrete_features(probX, probE, node_mask):
     # The masked rows should define probability distributions as well
     inverse_edge_mask = ~(node_mask.unsqueeze(1) * node_mask.unsqueeze(2))
     diag_mask = torch.eye(n).unsqueeze(0).expand(bs, -1, -1)
-
+    #把mask掉的edge和diag的边都赋uniform distribution
     probE[inverse_edge_mask] = 1 / probE.shape[-1]
     probE[diag_mask.bool()] = 1 / probE.shape[-1]
 
@@ -260,6 +261,9 @@ def sample_discrete_features(probX, probE, node_mask):
 
     # Sample E
     E_t = probE.multinomial(1).reshape(bs, n, n)   # (bs, n, n)
+    # undirected graph
+    # 取上三角(除去对角线)
+    # 然后对称过来
     E_t = torch.triu(E_t, diagonal=1)
     E_t = (E_t + torch.transpose(E_t, 1, 2))
 

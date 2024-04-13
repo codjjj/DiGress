@@ -53,11 +53,12 @@ class SelectHOMOTransform:
 class QM9Dataset(InMemoryDataset):
     raw_url = ('https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/'
                'molnet_publish/qm9.zip')
-    raw_url2 = 'https://ndownloader.figshare.com/files/3195404'
+    raw_url2 = 'https://figshare.com/ndownloader/files/3195404'
     processed_url = 'https://data.pyg.org/datasets/qm9_v3.zip'
 
     def __init__(self, stage, root, remove_h: bool, target_prop=None,
                  transform=None, pre_transform=None, pre_filter=None):
+        print(f'QM9dataset stage{stage}')
         self.target_prop = target_prop
         self.stage = stage
         if self.stage == 'train':
@@ -96,6 +97,7 @@ class QM9Dataset(InMemoryDataset):
         """
         Download raw qm9 files. Taken from PyG QM9 class
         """
+        print("Download QM9 from PyG")
         try:
             import rdkit  # noqa
             file_path = download_url(self.raw_url, self.raw_dir)
@@ -105,11 +107,13 @@ class QM9Dataset(InMemoryDataset):
             file_path = download_url(self.raw_url2, self.raw_dir)
             os.rename(osp.join(self.raw_dir, '3195404'),
                       osp.join(self.raw_dir, 'uncharacterized.txt'))
+            print("!!!DOWNLOAD finished")
         except ImportError:
+            print("!!!HAS ImportError")
             path = download_url(self.processed_url, self.raw_dir)
             extract_zip(path, self.raw_dir)
             os.unlink(path)
-
+        
         if files_exist(self.split_paths):
             return
 
