@@ -117,7 +117,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         X, E = dense_data.X, dense_data.E
         noisy_data = self.apply_noise(X, E, data.y, node_mask)
         extra_data = self.compute_extra_data(noisy_data)
-        # pred: 加上extra_data的最终预测的X,E,y
+        # pred: 加上extra_data的最终预测的X,E,y,再传入model中
         pred = self.forward(noisy_data, extra_data, node_mask)
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
@@ -146,13 +146,15 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
 
     def on_train_epoch_end(self) -> None:
         to_log = self.train_loss.log_epoch_metrics()
+        # TODO: y_CE是什么含义?
         self.print(f"Epoch {self.current_epoch}: X_CE: {to_log['train_epoch/x_CE'] :.3f}"
                       f" -- E_CE: {to_log['train_epoch/E_CE'] :.3f} --"
                       f" y_CE: {to_log['train_epoch/y_CE'] :.3f}"
                       f" -- {time.time() - self.start_epoch_time:.1f}s ")
         epoch_at_metrics, epoch_bond_metrics = self.train_metrics.log_epoch_metrics()
         self.print(f"Epoch {self.current_epoch}: {epoch_at_metrics} -- {epoch_bond_metrics}")
-        print(torch.cuda.memory_summary())
+        # 这个print太麻烦,之后了解了再观察
+        # print(torch.cuda.memory_summary())
 
     def on_validation_epoch_start(self) -> None:
         self.val_nll.reset()
@@ -161,6 +163,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         self.val_X_logp.reset()
         self.val_E_logp.reset()
         self.sampling_metrics.reset()
+
 
     def validation_step(self, data, i):
         dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
@@ -229,6 +232,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         self.test_E_kl.reset()
         self.test_X_logp.reset()
         self.test_E_logp.reset()
+        self.print(f'when test: local rank is {self.local_rank}')
         if self.local_rank == 0:
             utils.setup_wandb(self.cfg)
 
@@ -261,6 +265,9 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
 
         self.print(f'Test loss: {test_nll :.4f}')
 
+        
+        # 生成部分
+        
         samples_left_to_generate = self.cfg.general.final_model_samples_to_generate
         samples_left_to_save = self.cfg.general.final_model_samples_to_save
         chains_left_to_save = self.cfg.general.final_model_chains_to_save
