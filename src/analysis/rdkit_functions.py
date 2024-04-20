@@ -322,6 +322,7 @@ def compute_molecular_metrics(molecule_list, train_smiles, dataset_info):
         validity_dict = {'mol_stable': -1, 'atm_stable': -1}
 
     metrics = BasicMolecularMetrics(dataset_info, train_smiles)
+    #  return ([validity, relaxed_validity, uniqueness, novelty], unique, dict(nc_min=nc_min, nc_max=nc_max, nc_mu=nc_mu), all_smiles)
     rdkit_metrics = metrics.evaluate(molecule_list)
     all_smiles = rdkit_metrics[-1]
     if wandb.run:
@@ -330,5 +331,5 @@ def compute_molecular_metrics(molecule_list, train_smiles, dataset_info):
                'Uniqueness': rdkit_metrics[0][2], 'Novelty': rdkit_metrics[0][3],
                'nc_max': nc['nc_max'], 'nc_mu': nc['nc_mu']}
         wandb.log(dic)
-
+    
     return validity_dict, rdkit_metrics, all_smiles
