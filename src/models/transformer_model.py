@@ -274,6 +274,8 @@ class GraphTransformer(nn.Module):
         after_in = utils.PlaceHolder(X=self.mlp_in_X(X), E=new_E, y=self.mlp_in_y(y)).mask(node_mask)
         X, E, y = after_in.X, after_in.E, after_in.y
 
+
+        
         for layer in self.tf_layers:
             X, E, y = layer(X, E, y, node_mask)
 
