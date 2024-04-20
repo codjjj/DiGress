@@ -51,6 +51,7 @@ class SelectHOMOTransform:
 
 
 class QM9Dataset(InMemoryDataset):
+    # data.edge_attr的五个属性分别是五种键,0表示没有键，1表示单键，2表示双键，3表示三键，1.5表示芳香键
     raw_url = ('https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/'
                'molnet_publish/qm9.zip')
     raw_url2 = 'https://figshare.com/ndownloader/files/3195404'
@@ -73,6 +74,7 @@ class QM9Dataset(InMemoryDataset):
 
     @property
     def raw_file_names(self):
+        # sdf中可能是存图, csv中是regression target(不知道用在哪儿了), uncharacterized.txt好像是用来skip的,不懂
         return ['gdb9.sdf', 'gdb9.sdf.csv', 'uncharacterized.txt']
 
     @property
@@ -161,12 +163,16 @@ class QM9Dataset(InMemoryDataset):
                 start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
                 row += [start, end]
                 col += [end, start]
+                # 注意这里的加1
                 edge_type += 2 * [bonds[bond.GetBondType()] + 1]
 
             edge_index = torch.tensor([row, col], dtype=torch.long)
             edge_type = torch.tensor(edge_type, dtype=torch.long)
+            # 这里已经让edge_attr的第一维表示没有连边了
             edge_attr = F.one_hot(edge_type, num_classes=len(bonds)+1).to(torch.float)
 
+            # 这一步是排序 permutation
+            # argsort 这是两个关键词排序
             perm = (edge_index[0] * N + edge_index[1]).argsort()
             edge_index = edge_index[:, perm]
             edge_attr = edge_attr[perm]
@@ -180,7 +186,7 @@ class QM9Dataset(InMemoryDataset):
                 edge_index, edge_attr = subgraph(to_keep, edge_index, edge_attr, relabel_nodes=True,
                                                  num_nodes=len(to_keep))
                 x = x[to_keep]
-                # Shift onehot encoding to match atom decoder
+                # Shift onehot encoding to match atom decoder 其实就是把H去掉
                 x = x[:, 1:]
 
             data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y, idx=i)
@@ -196,6 +202,11 @@ class QM9Dataset(InMemoryDataset):
 
 
 class QM9DataModule(MolecularDataModule):
+    """总的来说,AbstractDataModule是在lightin的module上套了一些函数,Molecular...是套了一个计算化合价的,QM9是引入QM9Dataset
+
+    Args:
+        MolecularDataModule (_type_): _description_
+    """    
     def __init__(self, cfg):
         self.datadir = cfg.dataset.datadir
         self.remove_h = cfg.dataset.remove_h
@@ -220,10 +231,23 @@ class QM9DataModule(MolecularDataModule):
                     'test': QM9Dataset(stage='test', root=root_path, remove_h=cfg.dataset.remove_h,
                                        target_prop=target, transform=transform)}
         super().__init__(cfg, datasets)
+        
 
 
 class QM9infos(AbstractDatasetInfos):
+    """计算一个数据集的信息,节点边的分布之类
+
+    Args:
+        AbstractDatasetInfos (_type_): _description_
+    """    
     def __init__(self, datamodule, cfg, recompute_statistics=False):
+        """_summary_
+
+        Args:
+            datamodule (_type_): _description_
+            cfg (_type_): _description_
+            recompute_statistics (bool, optional): 是重新用datamodule计算,避免重复计算. Defaults to False.
+        """        
         self.remove_h = cfg.dataset.remove_h
         self.need_to_strip = False        # to indicate whether we need to ignore one output from the model
 
@@ -236,6 +260,7 @@ class QM9infos(AbstractDatasetInfos):
             self.atom_weights = {0: 12, 1: 14, 2: 16, 3: 19}
             self.max_n_nodes = 9
             self.max_weight = 150
+            #n_nodes是图的节点个数的分布
             self.n_nodes = torch.tensor([0, 2.2930e-05, 3.8217e-05, 6.8791e-05, 2.3695e-04, 9.7072e-04,
                                          0.0046472, 0.023985, 0.13666, 0.83337])
             self.node_types = torch.tensor([0.7230, 0.1151, 0.1593, 0.0026])
@@ -325,10 +350,10 @@ def get_train_smiles(cfg, train_dataloader, dataset_infos, evaluate_dataset=Fals
 
 
 def compute_qm9_smiles(atom_decoder, train_dataloader, remove_h):
-    '''
+    '''将QM9数据集中的分子数据转换成SMILES字符串格式。SMILES(简化分子输入线性表示法)是一种用于表示化学分子结构的简单符号字符串表示法
 
     :param dataset_name: qm9 or qm9_second_half
-    :return:
+    :return: molsmile 分子的smile表示
     '''
     print(f"\tConverting QM9 dataset to SMILES for remove_h={remove_h}...")
 
@@ -340,7 +365,7 @@ def compute_qm9_smiles(atom_decoder, train_dataloader, remove_h):
         dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
         dense_data = dense_data.mask(node_mask, collapse=True)
         X, E = dense_data.X, dense_data.E
-
+        # n_nodes [bs] ->每张图多少个点
         n_nodes = [int(torch.sum((X != -1)[j, :])) for j in range(X.size(0))]
 
         molecule_list = []

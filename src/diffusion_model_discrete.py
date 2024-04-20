@@ -122,7 +122,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         loss = self.train_loss(masked_pred_X=pred.X, masked_pred_E=pred.E, pred_y=pred.y,
                                true_X=X, true_E=E, true_y=data.y,
                                log=i % self.log_every_steps == 0)
-
+        # train_metric: 记录每一个点的feature 边的feature 的CE
         self.train_metrics(masked_pred_X=pred.X, masked_pred_E=pred.E, true_X=X, true_E=E,
                            log=i % self.log_every_steps == 0)
 

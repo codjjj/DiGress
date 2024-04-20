@@ -4,6 +4,7 @@ import pathlib
 import warnings
 
 import torch
+import torch_geometric
 torch.cuda.empty_cache()
 import hydra
 from omegaconf import DictConfig
@@ -111,6 +112,35 @@ def main(cfg: DictConfig):
             from datasets import qm9_dataset
             datamodule = qm9_dataset.QM9DataModule(cfg)
             dataset_infos = qm9_dataset.QM9infos(datamodule=datamodule, cfg=cfg)
+            # 下面的实验表明to_dense之后,mask对X没用,但对E有用,因为有些node_mask=false的点连出的边竟然是有属性的,不是全零
+            # 懂了,其实是to_dense在赋1给那些没有连边的节点时,将不存在的节点也赋了所以要mask
+            '''
+            for i, data in enumerate(datamodule.train_dataloader()):
+                dense_data, node_mask = utils.to_dense(data.x, data.edge_index, data.edge_attr, data.batch)
+                import copy
+                init_dense_data=copy.deepcopy(dense_data)
+                dense_data = dense_data.mask(node_mask, collapse=False)
+                # assert torch.allclose(dense_data.X.float(),init_dense_data.X.float()),print(f'X {dense_data.X} {init_dense_data.X} ')
+                if torch.allclose(dense_data.E.float(),init_dense_data.E.float())==False:
+                    for bs in range(0,dense_data.E.shape[0]):
+                        for x in range(0,dense_data.E.shape[1]):
+                            for y in range(0,dense_data.E.shape[2]):
+                                if(torch.allclose(dense_data.E.float()[bs][x][y],init_dense_data.E.float()[bs][x][y])==False):
+                                    print(f'bs{bs} x{x} y{y}')
+                                    print(dense_data.E.float()[bs][x][y])
+                                    print(init_dense_data.E.float()[bs][x][y])
+                                    print(node_mask)
+                                    exit(0)
+
+            print('CORRECT')
+            result:
+            bs1 x0 y7
+            tensor([0., 0., 0., 0., 0.])
+            tensor([1., 0., 0., 0., 0.])
+            tensor([[ True,  True,  True,  True,  True,  True,  True,  True,  True],
+                    [ True,  True,  True,  True,  True,  True,  True, False, False]])
+            '''
+
             train_smiles = qm9_dataset.get_train_smiles(cfg=cfg, train_dataloader=datamodule.train_dataloader(),
                                                         dataset_infos=dataset_infos, evaluate_dataset=False)
         elif dataset_config['name'] == 'guacamol':
@@ -143,6 +173,7 @@ def main(cfg: DictConfig):
             train_metrics = TrainMolecularMetrics(dataset_infos)
 
         # We do not evaluate novelty during training
+        # sampling_metrics没仔细看 太化学了 
         sampling_metrics = SamplingMolecularMetrics(dataset_infos, train_smiles)
         visualization_tools = MolecularVisualization(cfg.dataset.remove_h, dataset_infos=dataset_infos)
 

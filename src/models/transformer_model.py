@@ -257,14 +257,19 @@ class GraphTransformer(nn.Module):
 
         diag_mask = torch.eye(n)
         diag_mask = ~diag_mask.type_as(E).bool()
+        # diag_mask: bs,n,n,1 的mask diag
         diag_mask = diag_mask.unsqueeze(0).unsqueeze(-1).expand(bs, -1, -1, -1)
 
+        # 切片后是独立对象
         X_to_out = X[..., :self.out_dim_X]
         E_to_out = E[..., :self.out_dim_E]
         y_to_out = y[..., :self.out_dim_y]
 
+        # node-wise edge_wise mlp
         new_E = self.mlp_in_E(E)
+        # 对称化
         new_E = (new_E + new_E.transpose(1, 2)) / 2
+
         after_in = utils.PlaceHolder(X=self.mlp_in_X(X), E=new_E, y=self.mlp_in_y(y)).mask(node_mask)
         X, E, y = after_in.X, after_in.E, after_in.y
 
@@ -275,6 +280,7 @@ class GraphTransformer(nn.Module):
         E = self.mlp_out_E(E)
         y = self.mlp_out_y(y)
 
+        # resnet 操作
         X = (X + X_to_out)
         E = (E + E_to_out) * diag_mask
         y = y + y_to_out

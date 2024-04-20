@@ -6,6 +6,7 @@ import torch.nn as nn
 
 
 class CEPerClass(Metric):
+    #这里的CE是按每一个点的feature和每一个边的feature来算的
     full_state_update = False
     def __init__(self, class_id):
         super().__init__()

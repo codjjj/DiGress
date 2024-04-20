@@ -51,17 +51,28 @@ def unnormalize(X, E, y, norm_values, norm_biases, node_mask, collapse=False):
 
 
 def to_dense(x, edge_index, edge_attr, batch):
-    #可以理解为去离散化
+    """X,node_mask是去离散化
+    E 去掉了自环后去离散化,并将没有边的部分的第一维设为1
+
+    Args:
+        x (_type_): _description_
+        edge_index (_type_): _description_
+        edge_attr (_type_): _description_
+        batch (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    # 可以理解为去离散化
     X, node_mask = to_dense_batch(x=x, batch=batch)
     # node_mask = node_mask.float()
-    #除掉self_loop,why???
+    # 除掉self_loop,应该是为了完整性,QM9没有自环
     edge_index, edge_attr = torch_geometric.utils.remove_self_loops(edge_index, edge_attr)
     # TODO: carefully check if setting node_mask as a bool breaks the continuous case
-    #最多点的数量
+    # 最多点的数量
     max_num_nodes = X.size(1)
     E = to_dense_adj(edge_index=edge_index, batch=batch, edge_attr=edge_attr, max_num_nodes=max_num_nodes)
     E = encode_no_edge(E)
-
     return PlaceHolder(X=X, E=E, y=None), node_mask
 
 #将没有连边,且不是self-loop的部分的第一个feature=1
@@ -120,6 +131,7 @@ class PlaceHolder:
 
     # mask self.X and 
     # mask self.E and keep symmetry
+    # collapse=True 是index编码 False 是OneHot编码
     def mask(self, node_mask, collapse=False):
         x_mask = node_mask.unsqueeze(-1)          # batch_size, max_nodes , 1
         e_mask1 = x_mask.unsqueeze(2)             # bs, n, 1, 1
