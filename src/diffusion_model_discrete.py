@@ -98,6 +98,7 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         self.number_chain_steps = cfg.general.number_chain_steps
         self.best_val_nll = 1e8
         self.val_counter = 0
+        self.train_time=0
 
     def training_step(self, data, i):
         #return number of elements
@@ -147,10 +148,12 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         to_log = self.train_loss.log_epoch_metrics()
         # TODO: y_CE是什么含义?
+        this_epoch_time=time.time()-self.start_epoch_time
+        self.train_time+=this_epoch_time
         self.print(f"Epoch {self.current_epoch}: X_CE: {to_log['train_epoch/x_CE'] :.3f}"
                       f" -- E_CE: {to_log['train_epoch/E_CE'] :.3f} --"
                       f" y_CE: {to_log['train_epoch/y_CE'] :.3f}"
-                      f" -- {time.time() - self.start_epoch_time:.1f}s ")
+                      f" -- {this_epoch_time:.1f}s ")
         epoch_at_metrics, epoch_bond_metrics = self.train_metrics.log_epoch_metrics()
         self.print(f"Epoch {self.current_epoch}: {epoch_at_metrics} -- {epoch_bond_metrics}")
         # 这个print太麻烦,之后了解了再观察

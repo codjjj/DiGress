@@ -152,8 +152,8 @@ class NodeEdgeBlock(nn.Module):
         Q = Q.reshape((Q.size(0), Q.size(1), self.n_head, self.df))
         K = K.reshape((K.size(0), K.size(1), self.n_head, self.df))
 
-        Q = Q.unsqueeze(2)                              # (bs, 1, n, n_head, df)
-        K = K.unsqueeze(1)                              # (bs, n, 1, n head, df)
+        Q = Q.unsqueeze(2)                              # (bs, n, 1, n_head, df)
+        K = K.unsqueeze(1)                              # (bs, 1, n, n head, df)
 
         # Compute unnormalized attentions. Y is (bs, n, n, n_head, df)
         Y = Q * K
@@ -180,7 +180,8 @@ class NodeEdgeBlock(nn.Module):
         diffusion_utils.assert_correctly_masked(newE, e_mask1 * e_mask2)
 
         # Compute attentions. attn is still (bs, n, n, n_head, df)
-        softmax_mask = e_mask2.expand(-1, n, -1, self.n_head)    # bs, 1, n, 1
+        # softmax_mask bs,n,n,n_head
+        softmax_mask = e_mask2.expand(-1, n, -1, self.n_head)    # e_mask2 bs, 1, n, 1
         attn = masked_softmax(Y, softmax_mask, dim=2)  # bs, n, n, n_head
 
         V = self.v(X) * x_mask                        # bs, n, dx
