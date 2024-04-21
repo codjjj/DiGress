@@ -244,13 +244,13 @@ class GraphTransformer(nn.Module):
                                                             dim_ffE=hidden_dims['dim_ffE'])
                                         for i in range(n_layers)])
 
-        self.mlp_out_X = nn.Sequential(nn.Linear(hidden_dims['dx'], hidden_mlp_dims['X']), act_fn_out,
+        self.mlp_out_X = nn.Sequential(nn.Linear(hidden_dims['dx']*self.n_layers, hidden_mlp_dims['X']), act_fn_out,
                                        nn.Linear(hidden_mlp_dims['X'], output_dims['X']))
 
-        self.mlp_out_E = nn.Sequential(nn.Linear(hidden_dims['de'], hidden_mlp_dims['E']), act_fn_out,
+        self.mlp_out_E = nn.Sequential(nn.Linear(hidden_dims['de']*self.n_layers, hidden_mlp_dims['E']), act_fn_out,
                                        nn.Linear(hidden_mlp_dims['E'], output_dims['E']))
 
-        self.mlp_out_y = nn.Sequential(nn.Linear(hidden_dims['dy'], hidden_mlp_dims['y']), act_fn_out,
+        self.mlp_out_y = nn.Sequential(nn.Linear(hidden_dims['dy']*self.n_layers, hidden_mlp_dims['y']), act_fn_out,
                                        nn.Linear(hidden_mlp_dims['y'], output_dims['y']))
 
     def forward(self, X, E, y, node_mask):
@@ -275,9 +275,20 @@ class GraphTransformer(nn.Module):
         X, E, y = after_in.X, after_in.E, after_in.y
 
 
-        
-        for layer in self.tf_layers:
-            X, E, y = layer(X, E, y, node_mask)
+        X_tot=[]
+        E_tot=[]
+        y_tot=[]
+        for idx,layer in enumerate(self.tf_layers):
+            if idx==0:
+                appendX, appendE, appendy = layer(X, E, y, node_mask)    
+            else:
+                appendX, appendE, appendy = layer(X_tot[-1], E_tot[-1], y_tot[-1], node_mask)
+            X_tot.append(appendX)
+            E_tot.append(appendE)
+            y_tot.append(appendy)
+        X=torch.concat(X_tot,-1)
+        E=torch.concat(E_tot,-1)
+        y=torch.concat(y_tot,-1)
 
         X = self.mlp_out_X(X)
         E = self.mlp_out_E(E)

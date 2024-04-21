@@ -153,7 +153,8 @@ class DiscreteDenoisingDiffusion(pl.LightningModule):
         self.print(f"Epoch {self.current_epoch}: X_CE: {to_log['train_epoch/x_CE'] :.3f}"
                       f" -- E_CE: {to_log['train_epoch/E_CE'] :.3f} --"
                       f" y_CE: {to_log['train_epoch/y_CE'] :.3f}"
-                      f" -- {this_epoch_time:.1f}s ")
+                      f" -- {this_epoch_time:.1f}s "
+                      f" -- total_time: {self.train_time}s")
         epoch_at_metrics, epoch_bond_metrics = self.train_metrics.log_epoch_metrics()
         self.print(f"Epoch {self.current_epoch}: {epoch_at_metrics} -- {epoch_bond_metrics}")
         # 这个print太麻烦,之后了解了再观察
